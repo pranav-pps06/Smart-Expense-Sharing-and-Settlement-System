@@ -1,0 +1,42 @@
+FRONT-END LIBRARIES
+
+react
+react-dom
+react-router-dom
+axios
+tailwindcss
+postcss
+autoprefixer
+lucide-react
+react-hook-form
+zod or yup
+jwt-decode
+react-toastify
+@reduxjs/toolkit or context API
+shadcn/ui (optional)
+recharts (optional)
+framer-motion (optional)
+
+BACKEND-LIBRARIES
+
+express
+cors
+dotenv
+morgan
+
+passport
+passport-local
+passport-jwt
+jsonwebtoken
+bcryptjs
+
+@prisma/client + prisma    (OR sequelize + mysql2)
+mongoose
+
+express-validator or joi/zod
+helmet
+cookie-parser
+express-rate-limit (optional)
+winston (optional)
+multer (optional)
+compression (optional)
