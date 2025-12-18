@@ -244,6 +244,7 @@ const GroupChat = ({ group, members, currentUser, onBack, onAddExpense }) => {
   const [settleOpen, setSettleOpen] = useState(false);
   const [settlements, setSettlements] = useState([]);
   const [settleScope, setSettleScope] = useState('mine'); // 'mine' or 'all'
+  const [membersOpen, setMembersOpen] = useState(false);
 
   useEffect(() => {
     const gid = group?.id;
@@ -333,6 +334,13 @@ const GroupChat = ({ group, members, currentUser, onBack, onAddExpense }) => {
               }}
             >
               View All Settlements
+            </button>
+            <button
+              type="button"
+              className="px-3 py-1 rounded border border-gray-600 text-gray-200 hover:bg-white/10 text-sm"
+              onClick={() => setMembersOpen(true)}
+            >
+              View All Group Members
             </button>
           </div>
         </div>
@@ -496,6 +504,42 @@ const GroupChat = ({ group, members, currentUser, onBack, onAddExpense }) => {
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Group Members Modal */}
+      {membersOpen && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMembersOpen(false)} />
+          <div className="relative z-40 bg-[#111] border border-gray-700 rounded-xl p-6 w-full max-w-xl text-white">
+            <div className="flex items-center gap-3 mb-4">
+              <button
+                type="button"
+                onClick={() => setMembersOpen(false)}
+                className="p-2 rounded hover:bg-white/10 text-[#C8FF01]"
+                aria-label="Back"
+                title="Back"
+              >
+                <FiArrowLeft className="text-2xl" />
+              </button>
+              <h3 className="text-xl font-semibold">Group Members</h3>
+            </div>
+            <div className="mb-3 text-gray-300">
+              <span className="text-gray-400">Group:</span> {group?.name}
+            </div>
+            <div className="border border-gray-700 rounded divide-y divide-gray-800">
+              {(members || []).length === 0 ? (
+                <p className="text-gray-400 p-3">No members found.</p>
+              ) : (
+                members.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between p-3">
+                    <div className="text-white">{m.name || m.username || m.email}</div>
+                    {m.email ? <div className="text-gray-300">{m.email}</div> : null}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

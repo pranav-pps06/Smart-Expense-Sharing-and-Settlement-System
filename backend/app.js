@@ -11,6 +11,7 @@ var loginUser = require('./routes/login');
 var newUser = require('./routes/newUser');
 var api = require('./routes/api');
 var expensesRouter = require('./routes/expenses');
+var authOtpRouter = require('./routes/authOtp');
 const { connectMongo } = require('./db/mongo');
 const mysqlDb = require('./db/sqlconnect');
 const bus = require('./events/bus');
@@ -46,5 +47,6 @@ app.use('/newuser', newUser);
 app.use('/loginuser', loginUser);
 app.use('/api', api);
 app.use('/api/expenses', expensesRouter);
+app.use('/api/auth', authOtpRouter);
 
 module.exports = app;

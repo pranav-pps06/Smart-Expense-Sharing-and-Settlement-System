@@ -1,5 +1,6 @@
 import React,{useState} from "react";
 import { Link ,useNavigate} from "react-router-dom";
+import { toast } from "react-hot-toast";
 
 const SignUp = () => {
 
@@ -9,32 +10,64 @@ const SignUp = () => {
   const [form, setForm] = useState({
   names: "",
   email: "",
-  password: ""
+  password: "",
+  code: ""
 });
+
+const sendOtp = async () => {
+  if (!form.email) {
+    toast.error("Please enter your email first");
+    return;
+  }
+  try {
+    const response = await fetch("http://localhost:3000/api/auth/signup/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email: form.email })
+    });
+    if (response.ok) {
+      toast.success("OTP sent to your email. Check inbox/spam.");
+    } else if (response.status === 409) {
+      const data = await response.json().catch(() => ({}));
+      toast.error(data?.message || "Email already exists. Please sign in.");
+    } else {
+      const data = await response.json().catch(() => ({}));
+      toast.error(data?.message || "Failed to send OTP. Try again.");
+    }
+  } catch (err) {
+    console.error(err);
+    toast.error("Network error while sending OTP");
+  }
+};
 
 const handleSubmit = async (e) => {
   e.preventDefault();
 
   try {
-    const response = await fetch("http://localhost:3000/newuser", {
+    // Verify OTP and create/login user
+    const response = await fetch("http://localhost:3000/api/auth/signup/verify-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form)
+      credentials: "include",
+      body: JSON.stringify({
+        email: form.email,
+        code: form.code,
+        names: form.names,
+        password: form.password
+      })
     });
-
-    
-    const data = await response.json(); 
-
+    const data = await response.json();
     if (response.ok) {
-      console.log("user added successfully",data);
-      navigate("/login");
+      console.log("Signup verified:", data);
+      toast.success("Signup verified. Welcome!");
+      navigate("/dashboard");
     } else {
-      console.log("user didnt add successfully",data.sqlMessage);
+      toast.error(data?.message || "Invalid or expired OTP");
     }
-
   } catch (err) {
     console.error(err);
-    console.log("Network or server error");
+    toast.error("Network or server error");
   }
 };
 
@@ -111,6 +144,13 @@ const handleSubmit = async (e) => {
                 transition
               "
             />
+            <button
+              type="button"
+              onClick={sendOtp}
+              className="mt-2 inline-flex items-center px-3 py-2 rounded-lg border border-[#C8FF01] text-[#C8FF01] hover:bg-[#C8FF01] hover:text-black transition"
+            >
+              Send OTP
+            </button>
           </div>
 
           {/* Phone Number */}
@@ -142,6 +182,29 @@ const handleSubmit = async (e) => {
               name="password"
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               placeholder="Create a password"
+              className="
+                mt-1 px-4 py-2
+                rounded-lg
+                bg-black/40
+                border border-white/20
+                text-white
+                placeholder-white/40
+                focus:outline-none
+                focus:border-[#C8FF01]
+                focus:shadow-[0_0_18px_rgba(200,255,1,0.20)]
+                transition
+              "
+            />
+          </div>
+
+          {/* OTP Code */}
+          <div className="flex flex-col">
+            <label className="text-sm text-gray-300">OTP Code</label>
+            <input
+              type="text"
+              name="code"
+              onChange={(e) => setForm({ ...form, code: e.target.value })}
+              placeholder="Enter the 6-digit code"
               className="
                 mt-1 px-4 py-2
                 rounded-lg
