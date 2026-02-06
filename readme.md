@@ -2,7 +2,7 @@
 
 This project is a full-stack expense tracking application.
 
-## 📂 Project Structure
+## Project Structure
 
 - **`/backend`**: Node.js & Express API server.
 - **`/frontend`**: React + Vite frontend application.
@@ -11,7 +11,7 @@ This project is a full-stack expense tracking application.
   - **`/docs/images`**: Diagrams (ERD, Schema, etc.).
 - **`/report`**: Scripts for generating report documents.
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - Node.js installed
