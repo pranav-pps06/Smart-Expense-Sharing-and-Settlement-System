@@ -1,0 +1,66 @@
+PROJECT SQL QUERIES AND DESCRIPTIONS
+====================================
+
+1. Query for User Login
+"SELECT * FROM users WHERE email = ?"
+Description: Retrieves user details by email to verify credentials.
+
+2. Query for User Registration
+"INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)"
+Description: Creates a new user account.
+
+3. Query for List User Groups
+"SELECT DISTINCT g.id, g.name, g.created_by, u.name AS created_by_name FROM groups_made g LEFT JOIN group_members gm ON gm.group_id = g.id LEFT JOIN users u ON u.id = g.created_by WHERE g.created_by = ? OR gm.user_id = ? ORDER BY g.id DESC"
+Description: Retrieving groups the user is part of (demonstrates LEFT JOIN).
+
+4. Query for Fetch Group Members
+"SELECT DISTINCT u.id, u.name AS name, u.email FROM (SELECT g.created_by AS user_id FROM groups_made g WHERE g.id = ? UNION SELECT gm.user_id FROM group_members gm WHERE gm.group_id = ?) x JOIN users u ON u.id = x.user_id ORDER BY u.name ASC, u.email ASC"
+Description: Unique member list including creator (demonstrates UNION and Subquery).
+
+5. Query for Create New Group
+"INSERT INTO groups_made (name, created_by) VALUES (?, ?)"
+Description: Inserts a new group header.
+
+6. Query for Add Members to Group
+"INSERT INTO group_members (group_id, user_id) VALUES (?, ?)"
+Description: Inserts group membership records.
+
+7. Query for Create Expense
+"INSERT INTO expenses (group_id, paid_by, amount, description) VALUES (?, ?, ?, ?)"
+Description: Records the main expense.
+
+8. Query for Create Expense Splits
+"INSERT INTO expense_splits (expense_id, user_id, owed_amount) VALUES (?, ?, ?)"
+Description: Records individual debt shares.
+
+9. Query for Calculate Total Paid
+"SELECT paid_by AS user_id, SUM(amount) AS paid_total FROM expenses WHERE group_id = ? GROUP BY paid_by"
+Description: Aggregates total payments by user (demonstrates GROUP BY).
+
+10. Query for Calculate Total Owed
+"SELECT s.user_id, SUM(s.owed_amount) AS owed_total FROM expense_splits s JOIN expenses e ON e.id = s.expense_id WHERE e.group_id = ? GROUP BY s.user_id"
+Description: Aggregates total debts by user (demonstrates JOIN + GROUP BY).
+
+====================================
+NOSQL COMMANDS (MONGODB)
+====================================
+
+1. Command to Fetch Activity Logs
+"db.activitylogs.find({ group_id: 12 }).sort({ timestamp: -1 }).limit(2)"
+Description: Retrieves the latest 2 activity history entries for a specific group.
+
+2. Command to View Settlement Cache
+"db.settlementcaches.findOne({ group_id: 12 })"
+Description: Shows the stored calculation of who owes whom in the group.
+
+3. Command to Aggregate Activity Stats
+"db.activitylogs.aggregate([{ $match: { group_id: 12 } }, { $group: { _id: "$action_type", count: { $sum: 1 } } }])"
+Description: Counts how many times each type of action (e.g., "expense_added", "settled") occurred in the group.
+
+4. Command to Inspect Latest OTP
+"db.emailotps.findOne().sort({ createdAt: -1 })"
+Description: Checks the most recently generated OTP entry for debugging or auditing.
+
+5. Command to Count Expired OTPs
+"db.emailotps.countDocuments({ expiresAt: { $lt: new Date() } })"
+Description: Counts how many old OTPs are waiting to be cleaned up from the database.

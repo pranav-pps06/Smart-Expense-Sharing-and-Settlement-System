@@ -1,0 +1,15 @@
+{
+  "name": "dbms-el-report-generator",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Generate DBMS Lab EL report DOCX from markdown",
+  "main": "generate-docx.js",
+  "scripts": {
+    "generate": "node generate-docx.js",
+    "generate:synopsis": "node generate-synopsis-docx.js"
+  },
+  "dependencies": {
+    "docx": "^9.2.3"
+  }
+}

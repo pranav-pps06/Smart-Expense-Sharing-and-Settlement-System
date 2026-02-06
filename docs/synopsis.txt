@@ -1,0 +1,93 @@
+RV College of Engineering®, Bengaluru – 59
+Department of Computer Science and Engineering
+DATABASE MANAGEMENT SYSTEMS (CD252IA)
+Synopsis
+TITLE:       Smart Expense Sharing and Tracking System
+TEAM
+USN:
+Name
+1RV23CS157
+Nischal R E
+1RV23CS156
+Niranjan R N
+1RV23CS175
+Pranav P Sanjee
+
+Smart Expense Sharing and Tracking System
+
+1. Introduction
+The Smart Expense Sharing and Management System is a web-based application that simplifies tracking and splitting shared expenses inside user-created groups. Core goals are accuracy in splits, transparency of changes, and low-friction entry. Users can:
+- Create groups, add members, and record expenses with equal splits.
+- See who paid and who owes, with a consistent activity trail.
+- Receive real-time updates when new groups or expenses are added.
+The solution uses React (frontend), Express + MySQL (transactional data), MongoDB (activity, notifications, caches), JWT cookies (sessions), and Socket.IO (realtime). Email-based OTP signup and password login are implemented.
+
+2. Existing System
+Manual tracking via spreadsheets, notes, or chat threads is error-prone and hard to audit. Common pain points include:
+- Missing participants in splits and arithmetic mistakes over time.
+- Duplicate or inconsistent entries when multiple people add data.
+- Poor visibility into history (who added what, when, and why).
+Existing apps help but still require frequent coordination and manual reconciliation without a clear, shared activity log in some workflows.
+
+3. Proposed System
+Implemented capabilities:
+- Group management: Create groups; add members via email lookup to existing users.
+- Expense entry: Add expenses and automatically split equally among selected members; view detailed participant splits and payer.
+- Natural-language text parsing (prototype): A text endpoint that extracts amount, description, and simple participant hints (e.g., "Paid 500 for dinner with user-12 and me").
+- Real-time updates: Socket.IO broadcasts when groups/expenses are created; relevant users receive live UI refreshes.
+- Activity & notifications: Persisted activity logs and per-user notifications for group membership and expense creation.
+- Authentication & session: Email OTP-based signup, password login, JWT cookie sessions, and guarded API routes.
+- Hybrid storage: MySQL for users/groups/expenses/splits; MongoDB for activity/notifications/realtime snapshots and cached settlements.
+
+User flow (high level):
+1) Sign up with email OTP or log in with password.
+2) Create a group and add members by verified email.
+3) Add an expense, select participants, and confirm equal split.
+4) See recent activity and notifications; participants receive realtime updates.
+5) View settlements derived from net balances (who should pay whom) per group.
+
+Constraints & exclusions at this stage:
+- No voice speech-to-text input.
+- No OCR receipt extraction.
+- No mobile client.
+- No advanced NLP splitting rules beyond the simple text prototype.
+
+4. Relational Database Structure
+MySQL stores structured transactional data with clear relationships:
+- Users: users (id, name, email, password_hash)
+- Groups: groups_made (id, name, created_by)
+- Group Members: group_members (group_id, user_id)
+- Expenses: expenses (id, group_id, paid_by, amount, description)
+- Expense Splits: expense_splits (expense_id, user_id, owed_amount)
+
+Design notes:
+- Splits reference expenses by foreign key; members reference groups.
+- Amounts are stored with two-decimal precision; equal splits are computed deterministically to avoid rounding drift.
+- A separate Balance table is not maintained; balances are computed from expenses and splits and cached (see NoSQL).
+
+5. RDBMS and NoSQL Integration
+Hybrid data handling combines ACID transactions (MySQL) with flexible event storage (MongoDB):
+- RDBMS (MySQL): Canonical records for users, groups, membership, expenses, and splits.
+- NoSQL (MongoDB):
+  - ActivityLog: chronological audit of actions (group created, expense added).
+  - Notification: per-user messages (added to a group, new expense).
+  - RealtimeUpdate: event snapshots for clients.
+  - SettlementCache: computed payer→receiver pairs for each group.
+
+Event flow (examples):
+• Group created → write activity + notifications in Mongo → emit realtime "GROUP_CREATED" → clients refresh groups.
+• Expense added → write activity + notifications → recompute SettlementCache → emit realtime "EXPENSE_ADDED" → clients update UI.
+Consistency model: Strong consistency in MySQL for transactions; eventual consistency for activity/notifications and settlement caches in Mongo.
+
+6. Societal Concern
+Unclear expense sharing causes misunderstandings and conflict. This system improves transparency and trust by:
+- Maintaining an auditable activity trail of all changes.
+- Providing clear participant lists and itemized splits.
+- Delivering timely notifications and realtime updates.
+Basic security measures include password hashing, OTP verification, and cookie-based JWT sessions.
+
+Technology highlights used in this implementation:
+- RESTful APIs for clean client–server interactions.
+- WebSockets (Socket.IO) for realtime collaboration.
+- Hybrid SQL + NoSQL storage to balance integrity and flexibility.
+- JWT + OTP for practical, secure authentication and sessions.
