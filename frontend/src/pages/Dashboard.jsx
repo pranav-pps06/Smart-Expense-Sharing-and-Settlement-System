@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import GroupTile from "../components/GroupTile";
 import { FiUser } from "react-icons/fi";
-import { FaRobot, FaCamera, FaChartLine, FaProjectDiagram, FaClock, FaSitemap } from "react-icons/fa";
+import { FaRobot, FaCamera, FaChartLine, FaProjectDiagram, FaClock, FaSitemap, FaDatabase } from "react-icons/fa";
 import axios from "axios";
 import { socket } from "../lib/socket";
 import { useAuth } from "../lib/auth";
@@ -15,6 +16,7 @@ import TimeTravelPanel from "../components/TimeTravelPanel";
 import SubGroupManager from "../components/SubGroupManager";
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const [activeMenu, setActiveMenu] = useState("groups");
   const { logout } = useAuth();
   const [user, setUser] = useState(null);
@@ -265,6 +267,14 @@ const Dashboard = () => {
                 <FaSitemap className="text-teal-400" />
                 <span>Sub-Groups</span>
               </button>
+
+              <button
+                className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 flex items-center gap-2 transition"
+                onClick={() => navigate('/database')}
+              >
+                <FaDatabase className="text-orange-400" />
+                <span>Database Explorer</span>
+              </button>
             </div>
           </div>
         </div>
@@ -344,6 +354,12 @@ const Dashboard = () => {
                   );
                 }
               })();
+            }}
+            onRefreshMembers={() => {
+              // Refresh group members after adding new ones
+              axios.get(`/api/groups/${selectedGroup.id}/members`, { withCredentials: true })
+                .then(res => setGroupMembers(res.data.members || []))
+                .catch(e => console.error('Refresh members failed', e));
             }}
           />
         )}
@@ -427,6 +443,10 @@ const Dashboard = () => {
         onClose={() => setShowSubGroups(false)}
         groupId={selectedGroup?.id}
         groupName={selectedGroup?.name}
+        onOpenSubGroup={(subGroup) => {
+          setShowSubGroups(false);
+          setSelectedGroup(subGroup);
+        }}
       />
 
     </div>

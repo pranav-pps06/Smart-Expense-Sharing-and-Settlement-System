@@ -39,19 +39,25 @@ router.get("/users/lookup", cookieAuth, (req, res) => {
   });
 });
 
-// GET /api/groups - list groups current user created or is a member of
+// GET /api/groups - list groups current user created or is a member of (excludes sub-groups)
 router.get('/groups', cookieAuth, (req, res) => {
   const userId = req.user.id;
+  const includeSubGroups = req.query.includeSubGroups === 'true';
+  
+  // Only show top-level groups (parent_id IS NULL) unless specifically requesting sub-groups
   const sql = `
     SELECT DISTINCT 
       g.id,
       g.name,
       g.created_by,
-      u.name AS created_by_name
+      g.parent_id,
+      u.name AS created_by_name,
+      (SELECT COUNT(*) FROM groups_made sg WHERE sg.parent_id = g.id) AS sub_group_count
     FROM groups_made g
     LEFT JOIN group_members gm ON gm.group_id = g.id
     LEFT JOIN users u ON u.id = g.created_by
-    WHERE g.created_by = ? OR gm.user_id = ?
+    WHERE (g.created_by = ? OR gm.user_id = ?)
+      ${includeSubGroups ? '' : 'AND g.parent_id IS NULL'}
     ORDER BY g.id DESC
   `;
   db.query(sql, [userId, userId], (err, rows) => {
@@ -63,7 +69,9 @@ router.get('/groups', cookieAuth, (req, res) => {
       id: g.id,
       name: g.name,
       created_by: g.created_by,
-      created_by_name: g.created_by_name || 'Unknown'
+      created_by_name: g.created_by_name || 'Unknown',
+      parent_id: g.parent_id,
+      sub_group_count: g.sub_group_count || 0
     }));
     return res.json({ groups });
   });
@@ -119,17 +127,19 @@ router.get('/user-dashboard', cookieAuth, (req, res) => {
 
   const userId = req.user.id;
 
-  // Query to get all groups the user created or is a member of
+  // Query to get all top-level groups the user created or is a member of (excludes sub-groups)
   const sql = `
   SELECT DISTINCT 
     g.id, 
     g.name, 
     g.created_by,
-    u.name AS created_by_name
+    g.parent_id,
+    u.name AS created_by_name,
+    (SELECT COUNT(*) FROM groups_made sg WHERE sg.parent_id = g.id) AS sub_group_count
   FROM groups_made g
   LEFT JOIN group_members gm ON gm.group_id = g.id
   LEFT JOIN users u ON u.id = g.created_by
-  WHERE g.created_by = ? OR gm.user_id = ?
+  WHERE (g.created_by = ? OR gm.user_id = ?) AND g.parent_id IS NULL
   ORDER BY g.id DESC
 `;
 
@@ -143,7 +153,8 @@ router.get('/user-dashboard', cookieAuth, (req, res) => {
         id: g.id,
         name: g.name,
         created_by: g.created_by,
-        created_by_name: g.created_by_name || 'Unknown'
+        created_by_name: g.created_by_name || 'Unknown',
+        sub_group_count: g.sub_group_count || 0
       }));
 
     return res.json({
@@ -232,6 +243,210 @@ router.post("/groups", cookieAuth, (req, res) => {
             console.error('Emit group:created failed:', e);
           }
         });
+      });
+    });
+  });
+});
+
+// POST /api/groups/:id/add-members - Add members to an existing group (can be called multiple times)
+router.post('/groups/:id/add-members', cookieAuth, async (req, res) => {
+  const groupId = parseInt(req.params.id, 10);
+  const { memberEmails } = req.body || {};
+  const userId = req.user.id;
+
+  if (!Number.isInteger(groupId) || groupId <= 0) {
+    return res.status(400).json({ message: 'Invalid group ID' });
+  }
+  if (!Array.isArray(memberEmails) || memberEmails.length === 0) {
+    return res.status(400).json({ message: 'At least one email is required' });
+  }
+
+  // Access check: only creator can add members
+  const accessSql = `SELECT created_by FROM groups_made WHERE id = ?`;
+  db.query(accessSql, [groupId], (accessErr, accessRows) => {
+    if (accessErr) {
+      console.error('Add members access check error:', accessErr);
+      return res.status(500).json({ message: 'Server error' });
+    }
+    if (!accessRows || accessRows.length === 0) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+    if (accessRows[0].created_by !== userId) {
+      return res.status(403).json({ message: 'Only the group creator can add members' });
+    }
+
+    // Find user IDs for the given emails
+    const placeholders = memberEmails.map(() => '?').join(', ');
+    const findUsersSql = `SELECT id, email FROM users WHERE email IN (${placeholders})`;
+    db.query(findUsersSql, memberEmails, (findErr, foundUsers) => {
+      if (findErr) {
+        console.error('Find users error:', findErr);
+        return res.status(500).json({ message: 'Server error' });
+      }
+
+      const foundEmails = (foundUsers || []).map(u => u.email.toLowerCase());
+      const notFound = memberEmails.filter(e => !foundEmails.includes(e.toLowerCase()));
+      const userIdsToAdd = (foundUsers || []).map(u => u.id);
+
+      if (userIdsToAdd.length === 0) {
+        return res.status(400).json({ 
+          message: 'No valid users found', 
+          notFound 
+        });
+      }
+
+      // Get existing members to avoid duplicates
+      const existingMembersSql = `SELECT user_id FROM group_members WHERE group_id = ?`;
+      db.query(existingMembersSql, [groupId], (existErr, existingRows) => {
+        if (existErr) {
+          console.error('Fetch existing members error:', existErr);
+          return res.status(500).json({ message: 'Server error' });
+        }
+
+        const existingIds = new Set((existingRows || []).map(r => r.user_id));
+        const newMemberIds = userIdsToAdd.filter(id => !existingIds.has(id));
+
+        if (newMemberIds.length === 0) {
+          return res.json({ 
+            message: 'All users are already members', 
+            addedCount: 0,
+            alreadyMembers: userIdsToAdd.length,
+            notFound 
+          });
+        }
+
+        // Insert new members
+        const insertPlaceholders = newMemberIds.map(() => '(?, ?)').join(', ');
+        const insertValues = newMemberIds.flatMap(uid => [groupId, uid]);
+        const insertSql = `INSERT INTO group_members (group_id, user_id) VALUES ${insertPlaceholders}`;
+
+        db.query(insertSql, insertValues, (insertErr) => {
+          if (insertErr) {
+            console.error('Insert new members error:', insertErr);
+            return res.status(500).json({ message: 'Failed to add members' });
+          }
+
+          // Log activity for each new member
+          const ActivityLog = require('../mongo/ActivityLog');
+          const addedUserNames = (foundUsers || [])
+            .filter(u => newMemberIds.includes(u.id))
+            .map(u => u.email);
+          
+          newMemberIds.forEach(async (memberId) => {
+            try {
+              await ActivityLog.create({
+                group_id: groupId,
+                user_id: userId,
+                action_type: 'MEMBER_ADDED',
+                meta: { 
+                  added_user_id: memberId,
+                  added_name: foundUsers.find(u => u.id === memberId)?.email 
+                },
+                timestamp: new Date()
+              });
+            } catch (logErr) {
+              console.error('Log member add error:', logErr);
+            }
+          });
+
+          return res.json({
+            success: true,
+            message: `Added ${newMemberIds.length} new member(s)`,
+            addedCount: newMemberIds.length,
+            addedEmails: addedUserNames,
+            notFound
+          });
+        });
+      });
+    });
+  });
+});
+
+// GET /api/groups/:id/expenses - Get all expenses for a group (from MySQL)
+router.get('/groups/:id/expenses', cookieAuth, (req, res) => {
+  const groupId = parseInt(req.params.id, 10);
+  const userId = req.user.id;
+
+  if (!Number.isInteger(groupId) || groupId <= 0) {
+    return res.status(400).json({ message: 'Invalid group ID' });
+  }
+
+  // Access check
+  const accessSql = `
+    SELECT g.id FROM groups_made g
+    LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = ?
+    WHERE g.id = ? AND (g.created_by = ? OR gm.user_id IS NOT NULL)
+    LIMIT 1
+  `;
+  db.query(accessSql, [userId, groupId, userId], (accessErr, accessRows) => {
+    if (accessErr) {
+      console.error('Expenses access check error:', accessErr);
+      return res.status(500).json({ message: 'Server error' });
+    }
+    if (!accessRows || accessRows.length === 0) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    // Get all expenses with payer name and split details
+    const expensesSql = `
+      SELECT 
+        e.id, e.amount, e.description, e.paid_by, e.created_at,
+        u.name AS payer_name, u.email AS payer_email
+      FROM expenses e
+      JOIN users u ON u.id = e.paid_by
+      WHERE e.group_id = ?
+      ORDER BY e.created_at DESC
+    `;
+    db.query(expensesSql, [groupId], (expErr, expenses) => {
+      if (expErr) {
+        console.error('Fetch expenses error:', expErr);
+        return res.status(500).json({ message: 'Failed to fetch expenses' });
+      }
+
+      if (!expenses || expenses.length === 0) {
+        return res.json({ expenses: [] });
+      }
+
+      // Get splits for all expenses
+      const expenseIds = expenses.map(e => e.id);
+      const splitsPlaceholders = expenseIds.map(() => '?').join(', ');
+      const splitsSql = `
+        SELECT es.expense_id, es.user_id, es.share, u.name, u.email
+        FROM expense_splits es
+        JOIN users u ON u.id = es.user_id
+        WHERE es.expense_id IN (${splitsPlaceholders})
+      `;
+      db.query(splitsSql, expenseIds, (splitErr, splits) => {
+        if (splitErr) {
+          console.error('Fetch splits error:', splitErr);
+          return res.status(500).json({ message: 'Failed to fetch expense splits' });
+        }
+
+        // Group splits by expense_id
+        const splitsByExpense = {};
+        (splits || []).forEach(s => {
+          if (!splitsByExpense[s.expense_id]) {
+            splitsByExpense[s.expense_id] = [];
+          }
+          splitsByExpense[s.expense_id].push({
+            user_id: s.user_id,
+            share: s.share,
+            name: s.name || s.email
+          });
+        });
+
+        // Combine expenses with their splits
+        const enrichedExpenses = expenses.map(e => ({
+          id: e.id,
+          amount: e.amount,
+          description: e.description,
+          paid_by: e.paid_by,
+          payer_name: e.payer_name || e.payer_email,
+          created_at: e.created_at,
+          splits: splitsByExpense[e.id] || []
+        }));
+
+        return res.json({ expenses: enrichedExpenses });
       });
     });
   });

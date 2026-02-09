@@ -370,21 +370,106 @@ const AddExpenseModal = ({ isOpen, onClose, members, group, currentUser, onSubmi
   );
 };
 
-const GroupChat = ({ group, members, currentUser, onBack, onAddExpense }) => {
+// Add Members Modal Component
+const AddMembersModal = ({ isOpen, onClose, groupId, onMembersAdded }) => {
+  const [emails, setEmails] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const emailList = emails.split(/[,\n]/).map(e => e.trim()).filter(Boolean);
+    if (emailList.length === 0) return;
+    
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await axios.post(`/api/groups/${groupId}/add-members`, {
+        memberEmails: emailList
+      }, { withCredentials: true });
+      setResult({ success: true, data: res.data });
+      if (res.data.addedCount > 0) {
+        onMembersAdded?.();
+      }
+    } catch (err) {
+      setResult({ success: false, error: err.response?.data?.message || err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="absolute inset-0 z-20 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-30 bg-[#111] border border-gray-700 rounded-xl p-6 w-full max-w-md text-white">
+        <h3 className="text-xl font-semibold mb-4">Add Members</h3>
+        <form onSubmit={handleSubmit}>
+          <label className="block mb-4">
+            <span className="text-gray-300">Enter email addresses (comma or newline separated)</span>
+            <textarea
+              value={emails}
+              onChange={(e) => setEmails(e.target.value)}
+              rows={4}
+              className="mt-2 w-full px-3 py-2 rounded bg-[#212121] text-white border border-gray-700 focus:outline-none focus:border-[#C8FF01] resize-none"
+              placeholder="user1@example.com, user2@example.com"
+            />
+          </label>
+          
+          {result && (
+            <div className={`mb-4 p-3 rounded border ${result.success ? 'border-green-500 bg-green-900/20 text-green-400' : 'border-red-500 bg-red-900/20 text-red-400'}`}>
+              {result.success ? (
+                <>
+                  <p>{result.data.message}</p>
+                  {result.data.notFound?.length > 0 && (
+                    <p className="text-yellow-400 mt-1">Not found: {result.data.notFound.join(', ')}</p>
+                  )}
+                </>
+              ) : (
+                <p>{result.error}</p>
+              )}
+            </div>
+          )}
+          
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded border border-gray-600 text-gray-200 hover:bg-white/10">
+              Close
+            </button>
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="px-4 py-2 rounded border border-[#C8FF01] text-[#C8FF01] hover:bg-[#C8FF01] hover:text-black disabled:opacity-50"
+            >
+              {loading ? 'Adding...' : 'Add Members'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const GroupChat = ({ group, members, currentUser, onBack, onAddExpense, onRefreshMembers }) => {
   const [showModal, setShowModal] = useState(false);
   const [activity, setActivity] = useState([]);
+  const [expenses, setExpenses] = useState([]); // Direct from MySQL
+  const [viewMode, setViewMode] = useState('expenses'); // 'expenses' | 'activity'
   const [detail, setDetail] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [settleOpen, setSettleOpen] = useState(false);
   const [settlements, setSettlements] = useState([]);
   const [settleScope, setSettleScope] = useState('mine'); // 'mine' or 'all'
   const [membersOpen, setMembersOpen] = useState(false);
+  const [addMembersOpen, setAddMembersOpen] = useState(false);
 
   useEffect(() => {
     const gid = group?.id;
     if (!gid) return;
     // Join this group's room for realtime updates
     socket.emit('join:groups', [gid]);
+    
+    // Fetch activity from MongoDB
     (async () => {
       try {
         const res = await axios.get(
@@ -396,8 +481,20 @@ const GroupChat = ({ group, members, currentUser, onBack, onAddExpense }) => {
         console.error("Failed to load activity", e);
       }
     })();
+    
+    // Fetch expenses directly from MySQL
+    (async () => {
+      try {
+        const res = await axios.get(`/api/groups/${gid}/expenses`, { withCredentials: true });
+        setExpenses(res.data?.expenses || []);
+      } catch (e) {
+        console.error("Failed to load expenses from MySQL", e);
+      }
+    })();
+    
     const onExpenseAdded = (evt) => {
       if (evt?.groupId !== gid) return;
+      // Update activity feed
       setActivity((prev) => [
         {
           _id: `${evt.expenseId}-rt`,
@@ -410,6 +507,10 @@ const GroupChat = ({ group, members, currentUser, onBack, onAddExpense }) => {
         },
         ...prev,
       ]);
+      // Also refresh expenses list
+      axios.get(`/api/groups/${gid}/expenses`, { withCredentials: true })
+        .then(res => setExpenses(res.data?.expenses || []))
+        .catch(e => console.error('Refresh expenses failed', e));
     };
     socket.on('EXPENSE_ADDED', onExpenseAdded);
     return () => {
@@ -436,7 +537,7 @@ const GroupChat = ({ group, members, currentUser, onBack, onAddExpense }) => {
           {group?.created_by_name ? (
             <p className="text-sm text-gray-400">Created by {group.created_by_name}</p>
           ) : null}
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 flex flex-wrap gap-2">
             <button
               type="button"
               className="px-3 py-1 rounded border border-[#C8FF01] text-[#C8FF01] hover:bg-[#C8FF01] hover:text-black text-sm"
@@ -474,34 +575,52 @@ const GroupChat = ({ group, members, currentUser, onBack, onAddExpense }) => {
               className="px-3 py-1 rounded border border-gray-600 text-gray-200 hover:bg-white/10 text-sm"
               onClick={() => setMembersOpen(true)}
             >
-              View All Group Members
+              View Members
+            </button>
+            <button
+              type="button"
+              className="px-3 py-1 rounded border border-green-600 text-green-400 hover:bg-green-600 hover:text-white text-sm"
+              onClick={() => setAddMembersOpen(true)}
+            >
+              + Add Members
             </button>
           </div>
         </div>
       </div>
 
-      {/* Chat area placeholder */}
+      {/* View mode toggle */}
+      <div className="flex gap-2 mb-3">
+        <button
+          type="button"
+          onClick={() => setViewMode('expenses')}
+          className={`px-3 py-1 rounded text-sm ${viewMode === 'expenses' ? 'bg-[#C8FF01] text-black' : 'border border-gray-600 text-gray-200 hover:bg-white/10'}`}
+        >
+          Expenses ({expenses.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode('activity')}
+          className={`px-3 py-1 rounded text-sm ${viewMode === 'activity' ? 'bg-[#C8FF01] text-black' : 'border border-gray-600 text-gray-200 hover:bg-white/10'}`}
+        >
+          Activity Log ({activity.length})
+        </button>
+      </div>
+
+      {/* Main content area */}
       <div className="flex-1 bg-black/40 border border-gray-700 rounded-lg p-4 overflow-y-auto space-y-3">
-        {activity.length === 0 ? (
-          <p className="text-gray-400">No activity yet.</p>
-        ) : (
-          activity.map((log) => {
-            const actionType = (log.action_type || '').toLowerCase();
-            const isExpense = actionType === 'expense_added';
-            const isSettled = actionType === 'settled';
-            const isMember = actionType === 'member_added';
-            
-            return (
+        {viewMode === 'expenses' ? (
+          // Show expenses from MySQL
+          expenses.length === 0 ? (
+            <p className="text-gray-400">No expenses yet. Add your first expense!</p>
+          ) : (
+            expenses.map((exp) => (
               <button
                 type="button"
-                key={log._id}
+                key={exp.id}
                 className="w-full text-left p-3 rounded border border-gray-700 hover:border-[#C8FF01] hover:bg-white/5"
                 onClick={async () => {
-                  if (!log.expense_id) return;
                   try {
-                    const res = await axios.get(`/api/expenses/${log.expense_id}`, {
-                      withCredentials: true,
-                    });
+                    const res = await axios.get(`/api/expenses/${exp.id}`, { withCredentials: true });
                     setDetail(res.data);
                     setDetailOpen(true);
                   } catch (e) {
@@ -509,29 +628,86 @@ const GroupChat = ({ group, members, currentUser, onBack, onAddExpense }) => {
                   }
                 }}
               >
-                <div className="text-sm text-gray-400">
-                  {new Date(log.timestamp).toLocaleString()}
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="text-white font-medium">
+                      ₹{exp.amount} {exp.description ? `- ${exp.description}` : ''}
+                    </div>
+                    <div className="text-sm text-gray-400">
+                      Paid by {exp.payer_name}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {new Date(exp.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-gray-500">Split with</div>
+                    <div className="text-sm text-[#C8FF01]">
+                      {exp.splits?.length || 0} people
+                    </div>
+                  </div>
                 </div>
-                <div className="text-white">
-                  {isExpense ? (
-                    <span>
-                      Expense ₹{log.meta?.amount} {log.meta?.description ? `- ${log.meta.description}` : ""}
-                    </span>
-                  ) : isSettled ? (
-                    <span className="text-green-400">
-                      Settled ₹{log.meta?.amount} {log.meta?.with_user ? `with member` : ''}
-                    </span>
-                  ) : isMember ? (
-                    <span className="text-blue-400">
-                      Member added: {log.meta?.added_name || 'Unknown'}
-                    </span>
-                  ) : (
-                    <span>{log.action_type?.replace(/_/g, ' ')}</span>
-                  )}
-                </div>
+                {exp.splits && exp.splits.length > 0 && (
+                  <div className="mt-2 text-xs text-gray-500">
+                    {exp.splits.map(s => s.name).join(', ')}
+                  </div>
+                )}
               </button>
-            );
-          })
+            ))
+          )
+        ) : (
+          // Show activity logs from MongoDB
+          activity.length === 0 ? (
+            <p className="text-gray-400">No activity yet.</p>
+          ) : (
+            activity.map((log) => {
+              const actionType = (log.action_type || '').toLowerCase();
+              const isExpense = actionType === 'expense_added';
+              const isSettled = actionType === 'settled';
+              const isMember = actionType === 'member_added';
+              
+              return (
+                <button
+                  type="button"
+                  key={log._id}
+                  className="w-full text-left p-3 rounded border border-gray-700 hover:border-[#C8FF01] hover:bg-white/5"
+                  onClick={async () => {
+                    if (!log.expense_id) return;
+                    try {
+                      const res = await axios.get(`/api/expenses/${log.expense_id}`, {
+                        withCredentials: true,
+                      });
+                      setDetail(res.data);
+                      setDetailOpen(true);
+                    } catch (e) {
+                      console.error('Failed to load expense detail', e);
+                    }
+                  }}
+                >
+                  <div className="text-sm text-gray-400">
+                    {new Date(log.timestamp).toLocaleString()}
+                  </div>
+                  <div className="text-white">
+                    {isExpense ? (
+                      <span>
+                        Expense ₹{log.meta?.amount} {log.meta?.description ? `- ${log.meta.description}` : ""}
+                      </span>
+                    ) : isSettled ? (
+                      <span className="text-green-400">
+                        Settled ₹{log.meta?.amount} {log.meta?.with_user ? `with member` : ''}
+                      </span>
+                    ) : isMember ? (
+                      <span className="text-blue-400">
+                        Member added: {log.meta?.added_name || 'Unknown'}
+                      </span>
+                    ) : (
+                      <span>{log.action_type?.replace(/_/g, ' ')}</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })
+          )
         )}
       </div>
 
@@ -692,6 +868,14 @@ const GroupChat = ({ group, members, currentUser, onBack, onAddExpense }) => {
           </div>
         </div>
       )}
+
+      {/* Add Members Modal */}
+      <AddMembersModal
+        isOpen={addMembersOpen}
+        onClose={() => setAddMembersOpen(false)}
+        groupId={group?.id}
+        onMembersAdded={onRefreshMembers}
+      />
     </div>
   );
 };
