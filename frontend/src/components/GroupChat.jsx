@@ -176,8 +176,9 @@ const AddExpenseModal = ({ isOpen, onClose, members, group, currentUser, onSubmi
                 onClick={async () => {
                   try {
                     setParsing(true);
-                    const res = await axios.post('/api/expenses/parse', { transcript: speechText, groupId: group?.id, currentUserId: currentUser?.id }, { withCredentials: true });
-                    const data = res.data || {};
+                    // Use AI-powered voice parsing endpoint
+                    const res = await axios.post('/api/ai/voice-parse', { transcript: speechText, groupId: group?.id, currentUserId: currentUser?.id }, { withCredentials: true });
+                    const data = res.data?.parsed || res.data || {};
                     if (data.total) setAmount(String(data.total));
                     if (data.description) setDescription(data.description);
                     if (Array.isArray(data.participantIds) && data.participantIds.length) {

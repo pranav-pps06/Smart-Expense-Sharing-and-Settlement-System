@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from "react";
 import GroupTile from "../components/GroupTile";
 import { FiUser } from "react-icons/fi";
+import { FaRobot, FaCamera, FaChartLine, FaProjectDiagram, FaClock, FaSitemap } from "react-icons/fa";
 import axios from "axios";
 import { socket } from "../lib/socket";
 import { useAuth } from "../lib/auth";
 import AddGroupForm from "../components/AddGroupForm";
 import GroupChat from "../components/GroupChat";
+import AIChatbot from "../components/AIChatbot";
+import ReceiptScanner from "../components/ReceiptScanner";
+import InsightsDashboard from "../components/InsightsDashboard";
+import DebtGraph from "../components/DebtGraph";
+import TimeTravelPanel from "../components/TimeTravelPanel";
+import SubGroupManager from "../components/SubGroupManager";
 
 const Dashboard = () => {
   const [activeMenu, setActiveMenu] = useState("groups");
@@ -16,6 +23,14 @@ const Dashboard = () => {
   const [groupMembers, setGroupMembers] = useState([]);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // AI Features State
+  const [showChatbot, setShowChatbot] = useState(false);
+  const [showReceiptScanner, setShowReceiptScanner] = useState(false);
+  const [showInsights, setShowInsights] = useState(false);
+  const [showDebtGraph, setShowDebtGraph] = useState(false);
+  const [showTimeTravel, setShowTimeTravel] = useState(false);
+  const [showSubGroups, setShowSubGroups] = useState(false);
 
   useEffect(() => {
     // Fetch user and initial groups
@@ -198,6 +213,59 @@ const Dashboard = () => {
             >
               Add Group
             </p>
+
+            {/* AI Features */}
+            <div className="mt-6 pt-6 border-t border-gray-700">
+              <p className="text-sm text-gray-400 mb-3 px-3">AI Features</p>
+              
+              <button
+                className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 flex items-center gap-2 transition"
+                onClick={() => setShowChatbot(true)}
+              >
+                <FaRobot className="text-blue-400" />
+                <span>AI Assistant</span>
+              </button>
+
+              <button
+                className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 flex items-center gap-2 transition"
+                onClick={() => setShowReceiptScanner(true)}
+              >
+                <FaCamera className="text-green-400" />
+                <span>Scan Receipt</span>
+              </button>
+
+              <button
+                className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 flex items-center gap-2 transition"
+                onClick={() => setShowInsights(true)}
+              >
+                <FaChartLine className="text-purple-400" />
+                <span>Insights</span>
+              </button>
+
+              <button
+                className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 flex items-center gap-2 transition"
+                onClick={() => { if (selectedGroup) setShowDebtGraph(true); else alert('Select a group first'); }}
+              >
+                <FaProjectDiagram className="text-cyan-400" />
+                <span>Debt Graph</span>
+              </button>
+
+              <button
+                className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 flex items-center gap-2 transition"
+                onClick={() => { if (selectedGroup) setShowTimeTravel(true); else alert('Select a group first'); }}
+              >
+                <FaClock className="text-indigo-400" />
+                <span>Time Travel</span>
+              </button>
+
+              <button
+                className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 flex items-center gap-2 transition"
+                onClick={() => { if (selectedGroup) setShowSubGroups(true); else alert('Select a group first'); }}
+              >
+                <FaSitemap className="text-teal-400" />
+                <span>Sub-Groups</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -314,6 +382,52 @@ const Dashboard = () => {
         )}
 
       </div>
+
+      {/* AI Chatbot Modal */}
+      <AIChatbot 
+        isOpen={showChatbot}
+        onClose={() => setShowChatbot(false)}
+      />
+
+      {/* Receipt Scanner Modal */}
+      <ReceiptScanner 
+        isOpen={showReceiptScanner}
+        onClose={() => setShowReceiptScanner(false)}
+        onExpenseExtracted={(data) => {
+          // Handle extracted expense data
+          console.log('Extracted expense:', data);
+        }}
+      />
+
+      {/* Insights Dashboard Modal */}
+      <InsightsDashboard 
+        isOpen={showInsights}
+        onClose={() => setShowInsights(false)}
+      />
+
+      {/* Debt Graph Modal */}
+      <DebtGraph
+        isOpen={showDebtGraph}
+        onClose={() => setShowDebtGraph(false)}
+        groupId={selectedGroup?.id}
+        groupName={selectedGroup?.name}
+      />
+
+      {/* Time Travel Modal */}
+      <TimeTravelPanel
+        isOpen={showTimeTravel}
+        onClose={() => setShowTimeTravel(false)}
+        groupId={selectedGroup?.id}
+        groupName={selectedGroup?.name}
+      />
+
+      {/* Sub-Group Manager Modal */}
+      <SubGroupManager
+        isOpen={showSubGroups}
+        onClose={() => setShowSubGroups(false)}
+        groupId={selectedGroup?.id}
+        groupName={selectedGroup?.name}
+      />
 
     </div>
   );
