@@ -43,9 +43,11 @@ router.post('/parse', async (req, res) => {
     }
     if (groupId) {
       try {
-        const db = req.app.get('mysql');
-        const [rows] = await db.execute(
-          'SELECT u.id, u.email, u.name FROM users u JOIN group_members gm ON gm.user_id = u.id WHERE gm.group_id = ?;',
+        const { promisify } = require('util');
+        const dbConn = require('../db/sqlconnect');
+        const queryDb = promisify(dbConn.query).bind(dbConn);
+        const rows = await queryDb(
+          'SELECT u.id, u.email, u.name FROM users u JOIN group_members gm ON gm.user_id = u.id WHERE gm.group_id = ?',
           [groupId]
         );
         const candidates = rows.map(r => {

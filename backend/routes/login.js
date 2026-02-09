@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken");
 const db = require("../db/sqlconnect");
 
 
-const JWT_SECRET = process.env.JWT_SECRET || "heyheyhey";
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
 router.post("/", (req, res) => {
 
