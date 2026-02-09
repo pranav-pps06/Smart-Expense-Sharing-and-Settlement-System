@@ -118,20 +118,27 @@ router.post('/scan-receipt', cookieAuth, upload.single('receipt'), async (req, r
 
     console.log('Processing receipt:', req.file.path);
 
-    // Extract expense data from receipt
-    const result = await extractExpenseFromReceiptVision(req.file.path);
+    // Extract expense data from receipt (with caching)
+    const userId = req.user.id;
+    const result = await extractExpenseFromReceiptVision(req.file.path, userId);
 
-    // Clean up uploaded file
-    await fs.unlink(req.file.path).catch(err => 
-      console.error('Error deleting file:', err)
-    );
+    // Clean up uploaded file (unless cached result)
+    if (!result.cached) {
+      await fs.unlink(req.file.path).catch(err => 
+        console.error('Error deleting file:', err)
+      );
+    } else {
+      // Still delete the file for cached results
+      await fs.unlink(req.file.path).catch(() => {});
+    }
 
     if (result.success) {
       return res.json({
         success: true,
-        message: 'Receipt processed successfully',
+        message: result.cached ? 'Receipt found in cache' : 'Receipt processed successfully',
         data: result.data,
-        method: result.method || 'ocr'
+        method: result.method || 'ocr',
+        cached: result.cached || false
       });
     } else {
       return res.status(400).json({
@@ -366,8 +373,9 @@ router.get('/predictions', cookieAuth, async (req, res) => {
  */
 router.post('/subgroup', cookieAuth, async (req, res) => {
   try {
-    const { name, parentId, memberIds } = req.body;
-    if (!name || !parentId) {
+    const { name, parentId, parentGroupId, memberIds } = req.body;
+    const resolvedParentId = parentId || parentGroupId;
+    if (!name || !resolvedParentId) {
       return res.status(400).json({ success: false, message: 'name and parentId required' });
     }
 
@@ -375,14 +383,14 @@ router.post('/subgroup', cookieAuth, async (req, res) => {
 
     // Verify parent exists and user has access
     const [parent] = await query(
-      'SELECT id, created_by FROM groups_made WHERE id = ?', [parentId]
+      'SELECT id, created_by FROM groups_made WHERE id = ?', [resolvedParentId]
     );
     if (!parent) return res.status(404).json({ success: false, message: 'Parent group not found' });
 
     // Create sub-group
     const result = await query(
       'INSERT INTO groups_made (name, created_by, parent_id) VALUES (?, ?, ?)',
-      [name.trim(), createdBy, parentId]
+      [name.trim(), createdBy, resolvedParentId]
     );
     const subGroupId = result.insertId;
 
@@ -397,7 +405,7 @@ router.post('/subgroup', cookieAuth, async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      subGroup: { id: subGroupId, name: name.trim(), parent_id: parentId },
+      subGroup: { id: subGroupId, name: name.trim(), parent_id: resolvedParentId },
       message: 'Sub-group created'
     });
   } catch (error) {
@@ -416,7 +424,9 @@ router.get('/subgroups/:parentId', cookieAuth, async (req, res) => {
     if (!parentId) return res.status(400).json({ success: false, message: 'Invalid parentId' });
 
     const subGroups = await query(
-      'SELECT g.id, g.name, g.created_by, u.name AS created_by_name FROM groups_made g JOIN users u ON u.id = g.created_by WHERE g.parent_id = ?',
+      `SELECT g.id, g.name, g.name AS group_name, g.created_by, u.name AS created_by_name,
+       (SELECT COUNT(*) FROM group_members gm WHERE gm.group_id = g.id) AS member_count
+       FROM groups_made g JOIN users u ON u.id = g.created_by WHERE g.parent_id = ?`,
       [parentId]
     );
 

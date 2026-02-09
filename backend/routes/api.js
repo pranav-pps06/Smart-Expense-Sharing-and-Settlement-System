@@ -387,7 +387,11 @@ router.get('/settlements/:groupId/full', cookieAuth, async (req, res) => {
     if (err) return res.status(500).json({ message: 'Server error' });
     if (!rows || rows.length === 0) return res.status(403).json({ message: 'Forbidden' });
     try {
-      const settlements = await getCachedSettlements(groupId);
+      // Always recompute to ensure fresh data
+      let settlements = await getCachedSettlements(groupId);
+      if (!settlements || settlements.length === 0) {
+        settlements = await computeAndCacheSettlements(groupId);
+      }
       const usersSql = `
         SELECT DISTINCT u.id, u.name, u.email
         FROM (

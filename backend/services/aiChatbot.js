@@ -6,7 +6,7 @@ const query = promisify(db.query).bind(db);
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'dummy');
-const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
 /**
  * Get user's expense context for AI
@@ -159,9 +159,9 @@ async function getExpenseInsights(userId, userName) {
       return {
         success: true,
         insights: [
-          "👋 Welcome! You haven't added any expenses yet.",
-          "💡 Tip: Start by creating a group and adding your first expense.",
-          "🎯 Split bills fairly and keep track of who owes what!"
+          "Welcome! You haven't added any expenses yet.",
+          "Tip: Start by creating a group and adding your first expense.",
+          "Split bills fairly and keep track of who owes what!"
         ]
       };
     }
@@ -193,10 +193,11 @@ async function getExpenseInsights(userId, userName) {
     // Add balance insights
     const userBalance = context.balances.find(b => b.id === userId);
     if (userBalance) {
-      if (userBalance.balance > 0) {
-        insights.push(`You get back ₹${userBalance.balance.toFixed(2)} overall`);
-      } else if (userBalance.balance < 0) {
-        insights.push(`You owe ₹${Math.abs(userBalance.balance).toFixed(2)} overall`);
+      const bal = parseFloat(userBalance.balance) || 0;
+      if (bal > 0) {
+        insights.push(`You get back ₹${bal.toFixed(2)} overall`);
+      } else if (bal < 0) {
+        insights.push(`You owe ₹${Math.abs(bal).toFixed(2)} overall`);
       } else {
         insights.push(`You're all settled up!`);
       }

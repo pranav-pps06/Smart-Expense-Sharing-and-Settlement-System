@@ -2,14 +2,75 @@ const Tesseract = require('tesseract.js');
 const sharp = require('sharp');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs').promises;
+const crypto = require('crypto');
+const ReceiptCache = require('../mongo/ReceiptCache');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'dummy');
 
 /**
+ * Compute MD5 hash of image file for caching
+ */
+async function computeImageHash(imagePath) {
+  const buffer = await fs.readFile(imagePath);
+  return crypto.createHash('md5').update(buffer).digest('hex');
+}
+
+/**
+ * Check cache for previously scanned receipt
+ */
+async function getCachedReceipt(imageHash) {
+  try {
+    const cached = await ReceiptCache.findOne({ image_hash: imageHash });
+    if (cached) {
+      // Increment hit count
+      await ReceiptCache.updateOne(
+        { image_hash: imageHash },
+        { $inc: { hit_count: 1 } }
+      );
+      return cached.data;
+    }
+    return null;
+  } catch (e) {
+    console.error('Cache lookup error:', e);
+    return null;
+  }
+}
+
+/**
+ * Store scanned receipt in cache
+ */
+async function cacheReceipt(imageHash, data, userId) {
+  try {
+    await ReceiptCache.create({
+      image_hash: imageHash,
+      data,
+      user_id: userId
+    });
+  } catch (e) {
+    // Ignore duplicate key errors
+    if (e.code !== 11000) {
+      console.error('Cache store error:', e);
+    }
+  }
+}
+
+/**
  * Extract expense data from receipt image using OCR + AI
  */
-async function extractExpenseFromReceipt(imagePath) {
+async function extractExpenseFromReceipt(imagePath, userId = null) {
   try {
+    // Check cache first
+    const imageHash = await computeImageHash(imagePath);
+    const cached = await getCachedReceipt(imageHash);
+    if (cached) {
+      console.log('Receipt cache hit:', imageHash);
+      return {
+        success: true,
+        data: cached,
+        cached: true
+      };
+    }
+
     // Preprocess image for better OCR
     const processedImagePath = imagePath + '_processed.png';
     await sharp(imagePath)
@@ -34,7 +95,7 @@ async function extractExpenseFromReceipt(imagePath) {
       return extractExpenseDataSimple(text);
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
     
     const prompt = `
 Extract expense information from this receipt text. Return ONLY a valid JSON object with these fields:
@@ -57,15 +118,20 @@ Return ONLY the JSON object, nothing else.
     const jsonMatch = aiText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const expenseData = JSON.parse(jsonMatch[0]);
+      const resultData = {
+        amount: parseFloat(expenseData.amount) || 0,
+        description: expenseData.description || 'Receipt expense',
+        date: expenseData.date || new Date().toISOString().split('T')[0],
+        merchant: expenseData.merchant || null,
+        rawText: text.substring(0, 500) // First 500 chars for reference
+      };
+      
+      // Cache the result
+      await cacheReceipt(imageHash, resultData, userId);
+      
       return {
         success: true,
-        data: {
-          amount: parseFloat(expenseData.amount) || 0,
-          description: expenseData.description || 'Receipt expense',
-          date: expenseData.date || new Date().toISOString().split('T')[0],
-          merchant: expenseData.merchant || null,
-          rawText: text.substring(0, 500) // First 500 chars for reference
-        }
+        data: resultData
       };
     }
 
@@ -136,14 +202,27 @@ function extractExpenseDataSimple(text) {
 /**
  * Use Gemini Vision to analyze receipt image directly (better accuracy)
  */
-async function extractExpenseFromReceiptVision(imagePath) {
+async function extractExpenseFromReceiptVision(imagePath, userId = null) {
   try {
-    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'dummy' || process.env.GEMINI_API_KEY === 'your_gemini_api_key_here') {
-      // Fall back to OCR method
-      return await extractExpenseFromReceipt(imagePath);
+    // Check cache first
+    const imageHash = await computeImageHash(imagePath);
+    const cached = await getCachedReceipt(imageHash);
+    if (cached) {
+      console.log('Receipt cache hit (vision):', imageHash);
+      return {
+        success: true,
+        data: cached,
+        cached: true,
+        method: 'cache'
+      };
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'dummy' || process.env.GEMINI_API_KEY === 'your_gemini_api_key_here') {
+      // Fall back to OCR method
+      return await extractExpenseFromReceipt(imagePath, userId);
+    }
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
     // Read image as base64
     const imageBuffer = await fs.readFile(imagePath);
@@ -179,15 +258,20 @@ Return ONLY the JSON object, nothing else.
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const expenseData = JSON.parse(jsonMatch[0]);
+      const resultData = {
+        amount: parseFloat(expenseData.amount) || 0,
+        description: expenseData.description || 'Receipt expense',
+        date: expenseData.date || new Date().toISOString().split('T')[0],
+        merchant: expenseData.merchant || null,
+        items: expenseData.items || []
+      };
+      
+      // Cache the result
+      await cacheReceipt(imageHash, resultData, userId);
+      
       return {
         success: true,
-        data: {
-          amount: parseFloat(expenseData.amount) || 0,
-          description: expenseData.description || 'Receipt expense',
-          date: expenseData.date || new Date().toISOString().split('T')[0],
-          merchant: expenseData.merchant || null,
-          items: expenseData.items || []
-        },
+        data: resultData,
         method: 'vision'
       };
     }
@@ -197,7 +281,7 @@ Return ONLY the JSON object, nothing else.
   } catch (error) {
     console.error('Vision extraction error:', error);
     // Fallback to OCR
-    return await extractExpenseFromReceipt(imagePath);
+    return await extractExpenseFromReceipt(imagePath, userId);
   }
 }
 

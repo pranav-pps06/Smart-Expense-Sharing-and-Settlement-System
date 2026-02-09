@@ -3,7 +3,7 @@ import { FaChartLine, FaTimes, FaSpinner, FaChartBar, FaArrowUp, FaArrowDown, Fa
 import axios from 'axios';
 
 export default function InsightsDashboard({ isOpen, onClose }) {
-  const [tab, setTab] = useState('insights');
+  const [tab, setTab] = useState('insights'); // insights | predictions | monthly
   const [insights, setInsights] = useState([]);
   const [predictions, setPredictions] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -43,31 +43,29 @@ export default function InsightsDashboard({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  const trendIcon = predictions?.trend === 'increasing' ? <FaArrowUp className="text-red-400" /> :
-                    predictions?.trend === 'decreasing' ? <FaArrowDown className="text-green-400" /> :
-                    <FaMinus className="text-gray-500" />;
+  const trendIcon = predictions?.trend === 'increasing' ? <FaArrowUp className="text-red-500" /> :
+                    predictions?.trend === 'decreasing' ? <FaArrowDown className="text-green-500" /> :
+                    <FaMinus className="text-yellow-500" />;
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#111] border border-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-black border-b border-gray-800 text-white p-4 rounded-t-xl flex items-center justify-between">
+        <div className="bg-gradient-to-r from-purple-500 to-pink-600 text-white p-4 rounded-t-lg flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#C8FF01]/20 flex items-center justify-center">
-              <FaChartLine className="text-xl text-[#C8FF01]" />
-            </div>
+            <FaChartLine className="text-2xl" />
             <div>
-              <h2 className="text-lg font-bold text-[#C8FF01]">Smart Insights</h2>
-              <p className="text-xs text-gray-500">AI-powered spending analysis</p>
+              <h2 className="text-xl font-bold">Smart Insights & Predictions</h2>
+              <p className="text-sm opacity-90">AI-powered analysis of your spending</p>
             </div>
           </div>
-          <button onClick={onClose} className="hover:bg-white/10 p-2 rounded-full transition text-gray-400 hover:text-white">
+          <button onClick={onClose} className="hover:bg-white hover:bg-opacity-20 p-2 rounded-full transition">
             <FaTimes />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-800 bg-black">
+        <div className="flex border-b bg-gray-50">
           {[
             { key: 'insights', label: 'Insights' },
             { key: 'predictions', label: 'Predictions' },
@@ -76,8 +74,8 @@ export default function InsightsDashboard({ isOpen, onClose }) {
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex-1 py-3 text-sm font-medium transition border-b-2 ${
-                tab === t.key ? 'border-[#C8FF01] text-[#C8FF01]' : 'border-transparent text-gray-500 hover:text-gray-300'
+              className={`flex-1 py-3 text-sm font-semibold transition ${
+                tab === t.key ? 'border-b-2 border-purple-500 text-purple-600 bg-white' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               {t.label}
@@ -86,21 +84,22 @@ export default function InsightsDashboard({ isOpen, onClose }) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 bg-[#0a0a0a]">
+        <div className="flex-1 overflow-y-auto p-6">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <FaSpinner className="text-4xl text-[#C8FF01] animate-spin mb-4" />
-              <p className="text-gray-500">Analyzing your expenses...</p>
+              <FaSpinner className="text-4xl text-purple-500 animate-spin mb-4" />
+              <p className="text-gray-600">Analyzing your expenses...</p>
             </div>
           ) : (
             <>
               {tab === 'insights' && (
                 <div className="space-y-3">
-                  {insights.length > 0 ? insights.map((insight, idx) => (
-                    <div key={idx} className="bg-black border border-gray-800 rounded-lg p-4 hover:border-[#C8FF01]/50 transition">
-                      <p className="text-gray-300 text-sm leading-relaxed">{insight}</p>
+                  {insights.map((insight, idx) => (
+                    <div key={idx} className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4 hover:shadow-md transition">
+                      <p className="text-gray-800 leading-relaxed">{insight}</p>
                     </div>
-                  )) : (
+                  ))}
+                  {insights.length === 0 && (
                     <p className="text-center py-8 text-gray-500">No insights available yet. Add some expenses!</p>
                   )}
                 </div>
@@ -108,28 +107,28 @@ export default function InsightsDashboard({ isOpen, onClose }) {
 
               {tab === 'predictions' && predictions && (
                 <div className="space-y-4">
-                  {/* Stats Cards */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-black border border-gray-800 rounded-xl p-4">
-                      <p className="text-xs text-gray-500 font-medium uppercase mb-1">Next Month Estimate</p>
-                      <p className="text-2xl font-bold text-[#C8FF01]">₹{predictions.nextMonthEstimate?.toFixed(0) || 0}</p>
-                      <div className="flex items-center gap-1 mt-1 text-sm text-gray-500">
+                  {/* Prediction Cards */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                      <p className="text-xs text-blue-600 font-semibold uppercase">Next Month Estimate</p>
+                      <p className="text-2xl font-bold text-blue-800 mt-1">₹{predictions.nextMonthEstimate?.toFixed(0) || 0}</p>
+                      <div className="flex items-center gap-1 mt-1 text-sm">
                         {trendIcon}
-                        <span className="capitalize">{predictions.trend}</span>
+                        <span className="capitalize text-gray-600">{predictions.trend}</span>
                       </div>
                     </div>
-                    <div className="bg-black border border-gray-800 rounded-xl p-4">
-                      <p className="text-xs text-gray-500 font-medium uppercase mb-1">Avg Per Expense</p>
-                      <p className="text-2xl font-bold text-white">₹{predictions.avgPerExpense || 0}</p>
-                      <p className="text-sm text-gray-600 mt-1">{predictions.totalExpenses} total</p>
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
+                      <p className="text-xs text-green-600 font-semibold uppercase">Avg Per Expense</p>
+                      <p className="text-2xl font-bold text-green-800 mt-1">₹{predictions.avgPerExpense || 0}</p>
+                      <p className="text-sm text-gray-600 mt-1">{predictions.totalExpenses} total expenses</p>
                     </div>
                   </div>
 
                   {/* Categories */}
                   {predictions.categories && Object.keys(predictions.categories).length > 0 && (
-                    <div className="bg-black border border-gray-800 rounded-xl p-4">
-                      <h3 className="font-medium text-gray-300 mb-3 flex items-center gap-2">
-                        <FaChartBar className="text-[#C8FF01]" /> Spending by Category
+                    <div className="bg-white border border-gray-200 rounded-xl p-4">
+                      <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                        <FaChartBar className="text-purple-500" /> Spending by Category
                       </h3>
                       <div className="space-y-2">
                         {Object.entries(predictions.categories)
@@ -139,11 +138,14 @@ export default function InsightsDashboard({ isOpen, onClose }) {
                             const pct = total > 0 ? (amount / total * 100).toFixed(0) : 0;
                             return (
                               <div key={cat} className="flex items-center gap-3">
-                                <span className="w-20 text-xs text-gray-500 truncate">{cat}</span>
-                                <div className="flex-1 bg-gray-900 rounded-full h-3 overflow-hidden">
-                                  <div className="bg-[#C8FF01] h-full rounded-full transition-all" style={{ width: `${pct}%` }} />
+                                <span className="w-24 text-sm text-gray-600">{cat}</span>
+                                <div className="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
+                                  <div
+                                    className="bg-gradient-to-r from-purple-400 to-pink-400 h-full rounded-full transition-all"
+                                    style={{ width: `${pct}%` }}
+                                  />
                                 </div>
-                                <span className="text-xs font-medium text-gray-400 w-16 text-right">₹{amount.toFixed(0)}</span>
+                                <span className="text-sm font-semibold text-gray-700 w-20 text-right">₹{amount.toFixed(0)}</span>
                               </div>
                             );
                           })}
@@ -154,9 +156,9 @@ export default function InsightsDashboard({ isOpen, onClose }) {
                   {/* AI Insights */}
                   {predictions.insights && predictions.insights.length > 0 && (
                     <div className="space-y-2">
-                      <h3 className="font-medium text-gray-300">AI Analysis</h3>
+                      <h3 className="font-semibold text-gray-700">AI Analysis</h3>
                       {predictions.insights.map((insight, idx) => (
-                        <div key={idx} className="bg-[#C8FF01]/10 border border-[#C8FF01]/30 rounded-lg p-3 text-sm text-gray-300">
+                        <div key={idx} className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-gray-700">
                           {insight}
                         </div>
                       ))}
@@ -171,7 +173,7 @@ export default function InsightsDashboard({ isOpen, onClose }) {
 
               {tab === 'monthly' && predictions?.monthlyTrend && (
                 <div className="space-y-4">
-                  <h3 className="font-medium text-gray-300">Monthly Spending Trend</h3>
+                  <h3 className="font-semibold text-gray-700">Monthly Spending Trend</h3>
                   {predictions.monthlyTrend.length > 0 ? (
                     <div className="space-y-2">
                       {predictions.monthlyTrend.map((m, idx) => {
@@ -179,13 +181,13 @@ export default function InsightsDashboard({ isOpen, onClose }) {
                         const pct = max > 0 ? (m.total / max * 100).toFixed(0) : 0;
                         return (
                           <div key={idx} className="flex items-center gap-3">
-                            <span className="w-16 text-xs text-gray-500 font-mono">{m.month}</span>
-                            <div className="flex-1 bg-gray-900 rounded-full h-5 overflow-hidden">
+                            <span className="w-20 text-sm text-gray-600 font-mono">{m.month}</span>
+                            <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
                               <div
-                                className="bg-[#C8FF01] h-full rounded-full transition-all flex items-center justify-end pr-2"
-                                style={{ width: `${Math.max(pct, 10)}%` }}
+                                className="bg-gradient-to-r from-indigo-400 to-purple-500 h-full rounded-full transition-all flex items-center justify-end pr-2"
+                                style={{ width: `${Math.max(pct, 8)}%` }}
                               >
-                                <span className="text-xs text-black font-semibold">₹{m.total.toFixed(0)}</span>
+                                <span className="text-xs text-white font-semibold">₹{m.total.toFixed(0)}</span>
                               </div>
                             </div>
                           </div>
@@ -201,9 +203,11 @@ export default function InsightsDashboard({ isOpen, onClose }) {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-gray-800 bg-black">
-          <button onClick={onClose} className="w-full bg-gray-800 text-gray-300 py-2 rounded-lg hover:bg-gray-700 transition font-medium">
+        <div className="p-4 border-t bg-gray-50">
+          <button
+            onClick={onClose}
+            className="w-full bg-purple-500 text-white py-2 rounded-lg hover:bg-purple-600 transition font-semibold"
+          >
             Close
           </button>
         </div>

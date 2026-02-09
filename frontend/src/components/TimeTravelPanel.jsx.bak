@@ -49,7 +49,7 @@ export default function TimeTravelPanel({ isOpen, onClose, groupId, groupName })
         fetchAuditTrail();
         if (balances) fetchBalancesAtDate();
       } else {
-        setMessage(res.data.error || 'Undo failed');
+        setMessage((res.data.error || 'Undo failed'));
       }
     } catch (err) {
       setMessage('Undo failed: ' + (err.response?.data?.error || err.message));
@@ -65,7 +65,7 @@ export default function TimeTravelPanel({ isOpen, onClose, groupId, groupName })
         fetchAuditTrail();
         if (balances) fetchBalancesAtDate();
       } else {
-        setMessage(res.data.error || 'Redo failed');
+        setMessage((res.data.error || 'Redo failed'));
       }
     } catch (err) {
       setMessage('Redo failed: ' + (err.response?.data?.error || err.message));
@@ -78,40 +78,38 @@ export default function TimeTravelPanel({ isOpen, onClose, groupId, groupName })
   });
 
   const actionColors = {
-    created: 'border-green-600/30 bg-green-900/20 text-green-400',
-    deleted: 'border-red-600/30 bg-red-900/20 text-red-400',
-    updated: 'border-blue-600/30 bg-blue-900/20 text-blue-400',
-    restored: 'border-purple-600/30 bg-purple-900/20 text-purple-400'
+    created: 'bg-green-100 text-green-800 border-green-200',
+    deleted: 'bg-red-100 text-red-800 border-red-200',
+    updated: 'bg-blue-100 text-blue-800 border-blue-200',
+    restored: 'bg-purple-100 text-purple-800 border-purple-200'
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#111] border border-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="bg-black border-b border-gray-800 text-white p-4 rounded-t-xl flex items-center justify-between sticky top-0">
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white p-4 rounded-t-lg flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#C8FF01]/20 flex items-center justify-center">
-              <FaClock className="text-xl text-[#C8FF01]" />
-            </div>
+            <FaClock className="text-2xl" />
             <div>
-              <h2 className="text-lg font-bold text-[#C8FF01]">Time Travel</h2>
-              <p className="text-xs text-gray-500">{groupName || 'Group'} - View history & undo</p>
+              <h2 className="text-xl font-bold">Time Travel</h2>
+              <p className="text-sm opacity-90">{groupName || 'Group'} — View history & undo changes</p>
             </div>
           </div>
-          <button onClick={onClose} className="hover:bg-white/10 p-2 rounded-full transition text-gray-400 hover:text-white">
+          <button onClick={onClose} className="hover:bg-white/20 p-2 rounded-full transition">
             <FaTimes />
           </button>
         </div>
 
         {/* Message */}
         {message && (
-          <div className="mx-4 mt-4 p-3 rounded-lg bg-[#C8FF01]/20 text-[#C8FF01] text-sm font-medium text-center border border-[#C8FF01]/30">{message}</div>
+          <div className="mx-6 mt-4 p-3 rounded-lg bg-gray-100 text-sm font-medium text-center">{message}</div>
         )}
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-800 mx-4 mt-4">
+        <div className="flex border-b mx-6 mt-4">
           {[
             { key: 'snapshot', label: 'Point-in-Time', icon: <FaCalendarAlt /> },
             { key: 'audit', label: 'Audit Trail', icon: <FaHistory /> }
@@ -121,8 +119,8 @@ export default function TimeTravelPanel({ isOpen, onClose, groupId, groupName })
               onClick={() => setActiveTab(tab.key)}
               className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition border-b-2 ${
                 activeTab === tab.key
-                  ? 'border-[#C8FF01] text-[#C8FF01]'
-                  : 'border-transparent text-gray-500 hover:text-gray-300'
+                  ? 'border-purple-600 text-purple-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
               {tab.icon} {tab.label}
@@ -136,19 +134,19 @@ export default function TimeTravelPanel({ isOpen, onClose, groupId, groupName })
               {/* Date picker */}
               <div className="flex gap-3">
                 <div className="flex-1">
-                  <label className="block text-xs text-gray-500 mb-1">Select Date</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Date</label>
                   <input
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full bg-black border border-gray-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-[#C8FF01]"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-400 focus:border-transparent"
                   />
                 </div>
                 <div className="flex items-end">
                   <button
                     onClick={fetchBalancesAtDate}
                     disabled={isLoading}
-                    className="bg-[#C8FF01] text-black px-6 py-2 rounded-lg hover:bg-[#d4ff33] disabled:opacity-50 transition flex items-center gap-2 font-medium"
+                    className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 transition flex items-center gap-2"
                   >
                     {isLoading ? <FaSpinner className="animate-spin" /> : <FaClock />}
                     View
@@ -159,7 +157,7 @@ export default function TimeTravelPanel({ isOpen, onClose, groupId, groupName })
               {/* Balances */}
               {balances && (
                 <div className="space-y-3">
-                  <h3 className="font-medium text-gray-300">
+                  <h3 className="font-semibold text-gray-800">
                     Balances as of {new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </h3>
                   <div className="text-sm text-gray-500">
@@ -168,9 +166,9 @@ export default function TimeTravelPanel({ isOpen, onClose, groupId, groupName })
                   {balances.balances && balances.balances.length > 0 ? (
                     <div className="space-y-2">
                       {balances.balances.map((b, i) => (
-                        <div key={i} className="flex justify-between items-center bg-black border border-gray-800 rounded-lg p-3">
-                          <span className="font-medium text-white">{b.name}</span>
-                          <span className={`font-bold ${b.balance > 0 ? 'text-[#C8FF01]' : b.balance < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                        <div key={i} className="flex justify-between items-center bg-gray-50 rounded-lg p-3 border">
+                          <span className="font-medium text-gray-800">{b.name}</span>
+                          <span className={`font-bold ${b.balance > 0 ? 'text-green-600' : b.balance < 0 ? 'text-red-600' : 'text-gray-500'}`}>
                             {b.balance > 0 ? '+' : ''}₹{b.balance.toFixed(2)}
                           </span>
                         </div>
@@ -186,42 +184,46 @@ export default function TimeTravelPanel({ isOpen, onClose, groupId, groupName })
             /* Audit Trail */
             <div className="space-y-3">
               {auditTrail.length > 0 ? (
-                auditTrail.map((entry, i) => (
-                  <div key={i} className={`rounded-lg p-3 border ${actionColors[entry.action] || 'border-gray-800 bg-black'}`}>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="text-xs font-bold uppercase mr-2">{entry.action}</span>
-                        <span className="text-sm font-medium text-white">
-                          {entry.current_description || entry.new_description || entry.old_description || `Expense #${entry.expense_id}`}
-                        </span>
-                        {(entry.new_amount || entry.old_amount) && (
-                          <span className="text-sm text-gray-400 ml-1">— ₹{entry.new_amount || entry.old_amount}</span>
-                        )}
+                auditTrail.map((entry, i) => {
+                  return (
+                    <div key={i} className={`rounded-lg p-3 border ${actionColors[entry.action] || 'bg-gray-50'}`}>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="text-xs font-bold uppercase mr-2">{entry.action}</span>
+                          <span className="text-sm font-medium">
+                            {entry.current_description || entry.new_description || entry.old_description || `Expense #${entry.expense_id}`}
+                          </span>
+                          {(entry.new_amount || entry.old_amount) && (
+                            <span className="text-sm ml-1">— ₹{entry.new_amount || entry.old_amount}</span>
+                          )}
+                        </div>
+                        <div className="flex gap-1">
+                          {(entry.action === 'created' || entry.action === 'restored') && (
+                            <button
+                              onClick={() => handleUndo(entry.expense_id)}
+                              className="text-xs bg-white rounded px-2 py-1 hover:bg-gray-100 border flex items-center gap-1"
+                              title="Undo this expense"
+                            >
+                              <FaUndo /> Undo
+                            </button>
+                          )}
+                          {entry.action === 'deleted' && (
+                            <button
+                              onClick={() => handleRedo(entry.id)}
+                              className="text-xs bg-white rounded px-2 py-1 hover:bg-gray-100 border flex items-center gap-1"
+                              title="Redo / restore this expense"
+                            >
+                              <FaRedo /> Redo
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex gap-1">
-                        {(entry.action === 'created' || entry.action === 'restored') && (
-                          <button
-                            onClick={() => handleUndo(entry.expense_id)}
-                            className="text-xs bg-black rounded px-2 py-1 hover:bg-gray-900 border border-gray-700 flex items-center gap-1 text-gray-400 hover:text-white"
-                          >
-                            <FaUndo /> Undo
-                          </button>
-                        )}
-                        {entry.action === 'deleted' && (
-                          <button
-                            onClick={() => handleRedo(entry.id)}
-                            className="text-xs bg-black rounded px-2 py-1 hover:bg-gray-900 border border-gray-700 flex items-center gap-1 text-gray-400 hover:text-white"
-                          >
-                            <FaRedo /> Redo
-                          </button>
-                        )}
+                      <div className="text-xs opacity-75 mt-1">
+                        by {entry.changed_by_name || 'Unknown'} • {formatDate(entry.changed_at)}
                       </div>
                     </div>
-                    <div className="text-xs opacity-75 mt-1">
-                      by {entry.changed_by_name || 'Unknown'} • {formatDate(entry.changed_at)}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <p className="text-center text-gray-500 py-8">No audit history yet</p>
               )}

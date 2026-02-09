@@ -99,7 +99,7 @@ async function getPredictiveInsights(userId) {
   let aiInsights = [];
   if (hasKey) {
     try {
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
       const prompt = `Analyze this expense data and provide 4-5 actionable insights:
 
 Monthly spending: ${JSON.stringify(monthlyTrend)}

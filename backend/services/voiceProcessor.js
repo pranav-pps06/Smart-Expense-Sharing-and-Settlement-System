@@ -40,7 +40,7 @@ async function parseVoiceWithAI(transcript, groupId, currentUserId) {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
     
     const prompt = `Parse this expense description into structured data.
 
@@ -183,7 +183,7 @@ async function parseVoiceSettlement(transcript, groupId, currentUserId) {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
     const membersContext = membersList.map(m => `- ${m.name} (ID: ${m.id})`).join('\n');
 
     const prompt = `Parse this settlement statement.

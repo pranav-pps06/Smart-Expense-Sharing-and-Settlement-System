@@ -53,7 +53,7 @@ async function buildDebtGraph(groupId) {
   const rawEdges = [];
   const expenses = await query(`
     SELECT e.id, e.paid_by, e.amount, e.description
-    FROM expenses WHERE group_id = ?
+    FROM expenses e WHERE e.group_id = ?
   `, [groupId]);
 
   for (const exp of expenses) {

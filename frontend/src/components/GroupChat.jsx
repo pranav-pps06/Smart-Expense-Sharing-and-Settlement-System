@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { socket } from "../lib/socket";
 import { FiArrowLeft } from "react-icons/fi";
+import { FaUpload, FaSpinner, FaCheck, FaCamera } from "react-icons/fa";
 
 const AddExpenseModal = ({ isOpen, onClose, members, group, currentUser, onSubmit }) => {
-  const [tab, setTab] = useState('speech'); // 'write' | 'speech'
+  const [tab, setTab] = useState('speech'); // 'write' | 'speech' | 'receipt'
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [selected, setSelected] = useState([]);
@@ -13,6 +14,13 @@ const AddExpenseModal = ({ isOpen, onClose, members, group, currentUser, onSubmi
   const [recAvailable, setRecAvailable] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recognizer, setRecognizer] = useState(null);
+  
+  // Receipt scanning state
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [extractedData, setExtractedData] = useState(null);
+  const fileInputRef = useRef(null);
 
   if (!isOpen) return null;
 
@@ -31,18 +39,74 @@ const AddExpenseModal = ({ isOpen, onClose, members, group, currentUser, onSubmi
     onClose();
   };
 
+  // Receipt handlers
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size must be less than 5MB');
+        return;
+      }
+      setSelectedFile(file);
+      setExtractedData(null);
+      const reader = new FileReader();
+      reader.onloadend = () => setPreview(reader.result);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleScan = async () => {
+    if (!selectedFile) return;
+    setIsScanning(true);
+    const formData = new FormData();
+    formData.append('receipt', selectedFile);
+
+    try {
+      const response = await axios.post('/api/ai/scan-receipt', formData, {
+        withCredentials: true,
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (response.data.success) {
+        setExtractedData(response.data.data);
+      } else {
+        throw new Error(response.data.message || 'Failed to scan receipt');
+      }
+    } catch (error) {
+      console.error('Scan error:', error);
+      alert(error.response?.data?.message || 'Failed to scan receipt');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleUseExtracted = () => {
+    if (extractedData) {
+      setAmount(String(extractedData.amount || ''));
+      setDescription(extractedData.description || extractedData.merchant || '');
+      setTab('write'); // Switch to write tab to select split members
+    }
+  };
+
+  const handleResetReceipt = () => {
+    setSelectedFile(null);
+    setPreview(null);
+    setExtractedData(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <form
         onSubmit={submit}
-        className="relative z-30 bg-[#111] border border-gray-700 rounded-xl p-6 w-full max-w-lg text-white"
+        className="relative z-30 bg-[#111] border border-gray-700 rounded-xl p-6 w-full max-w-lg text-white max-h-[90vh] overflow-y-auto"
       >
         <h3 className="text-xl font-semibold mb-4">Add Expense</h3>
 
         <div className="mb-4 flex gap-2">
           <button type="button" onClick={() => setTab('speech')} className={`px-3 py-1 rounded border ${tab==='speech' ? 'border-[#C8FF01] text-[#C8FF01]' : 'border-gray-600 text-gray-200'} `}>Speech</button>
           <button type="button" onClick={() => setTab('write')} className={`px-3 py-1 rounded border ${tab==='write' ? 'border-[#C8FF01] text-[#C8FF01]' : 'border-gray-600 text-gray-200'} `}>Write</button>
+          <button type="button" onClick={() => setTab('receipt')} className={`px-3 py-1 rounded border ${tab==='receipt' ? 'border-[#C8FF01] text-[#C8FF01]' : 'border-gray-600 text-gray-200'} `}>Receipt</button>
         </div>
 
         {tab === 'write' && (
@@ -217,6 +281,75 @@ const AddExpenseModal = ({ isOpen, onClose, members, group, currentUser, onSubmi
           </div>
         )}
 
+        {tab === 'receipt' && (
+          <div className="mb-4 space-y-4">
+            {!preview ? (
+              <div
+                className="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center hover:border-[#C8FF01] transition cursor-pointer bg-black/50"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+                <FaUpload className="text-4xl text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-300 font-medium mb-1">Click to upload receipt</p>
+                <p className="text-xs text-gray-600">JPG, PNG, WebP (Max 5MB)</p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-400">Receipt Preview</span>
+                    <button type="button" onClick={handleResetReceipt} className="text-xs text-red-400 hover:text-red-300">Change</button>
+                  </div>
+                  <img src={preview} alt="Receipt" className="w-full max-h-48 object-contain border border-gray-800 rounded-lg bg-black" />
+                </div>
+
+                {!extractedData && (
+                  <button
+                    type="button"
+                    onClick={handleScan}
+                    disabled={isScanning}
+                    className="w-full bg-[#C8FF01] text-black py-3 rounded-lg hover:bg-[#d4ff33] disabled:bg-gray-800 disabled:text-gray-500 transition flex items-center justify-center gap-2 font-semibold"
+                  >
+                    {isScanning ? <><FaSpinner className="animate-spin" /> Scanning...</> : <><FaCamera /> Scan Receipt</>}
+                  </button>
+                )}
+
+                {extractedData && (
+                  <div className="bg-black border border-[#C8FF01]/30 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center gap-2 text-[#C8FF01] font-semibold">
+                      <FaCheck /> Extracted Data
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between border-b border-gray-800 pb-2">
+                        <span className="text-gray-500">Amount</span>
+                        <span className="text-[#C8FF01] font-bold text-lg">Rs.{extractedData.amount}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-gray-800 pb-2">
+                        <span className="text-gray-500">Description</span>
+                        <span className="text-white">{extractedData.description}</span>
+                      </div>
+                      {extractedData.merchant && (
+                        <div className="flex justify-between border-b border-gray-800 pb-2">
+                          <span className="text-gray-500">Merchant</span>
+                          <span className="text-white">{extractedData.merchant}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <button type="button" onClick={handleUseExtracted} className="flex-1 bg-[#C8FF01] text-black py-2 rounded-lg hover:bg-[#d4ff33] font-semibold transition">
+                        Use This
+                      </button>
+                      <button type="button" onClick={handleResetReceipt} className="flex-1 bg-gray-800 text-gray-300 py-2 rounded-lg hover:bg-gray-700 transition">
+                        Scan Another
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center justify-end gap-3">
           <button
             type="button"
@@ -352,38 +485,53 @@ const GroupChat = ({ group, members, currentUser, onBack, onAddExpense }) => {
         {activity.length === 0 ? (
           <p className="text-gray-400">No activity yet.</p>
         ) : (
-          activity.map((log) => (
-            <button
-              type="button"
-              key={log._id}
-              className="w-full text-left p-3 rounded border border-gray-700 hover:border-[#C8FF01] hover:bg-white/5"
-              onClick={async () => {
-                if (!log.expense_id) return;
-                try {
-                  const res = await axios.get(`/api/expenses/${log.expense_id}`, {
-                    withCredentials: true,
-                  });
-                  setDetail(res.data);
-                  setDetailOpen(true);
-                } catch (e) {
-                  console.error('Failed to load expense detail', e);
-                }
-              }}
-            >
-              <div className="text-sm text-gray-400">
-                {new Date(log.timestamp).toLocaleString()}
-              </div>
-              <div className="text-white">
-                {log.action_type === "EXPENSE_ADDED" ? (
-                  <span>
-                    Expense ₹{log.meta?.amount} {log.meta?.description ? `- ${log.meta.description}` : ""}
-                  </span>
-                ) : (
-                  <span>{log.action_type}</span>
-                )}
-              </div>
-            </button>
-          ))
+          activity.map((log) => {
+            const actionType = (log.action_type || '').toLowerCase();
+            const isExpense = actionType === 'expense_added';
+            const isSettled = actionType === 'settled';
+            const isMember = actionType === 'member_added';
+            
+            return (
+              <button
+                type="button"
+                key={log._id}
+                className="w-full text-left p-3 rounded border border-gray-700 hover:border-[#C8FF01] hover:bg-white/5"
+                onClick={async () => {
+                  if (!log.expense_id) return;
+                  try {
+                    const res = await axios.get(`/api/expenses/${log.expense_id}`, {
+                      withCredentials: true,
+                    });
+                    setDetail(res.data);
+                    setDetailOpen(true);
+                  } catch (e) {
+                    console.error('Failed to load expense detail', e);
+                  }
+                }}
+              >
+                <div className="text-sm text-gray-400">
+                  {new Date(log.timestamp).toLocaleString()}
+                </div>
+                <div className="text-white">
+                  {isExpense ? (
+                    <span>
+                      Expense ₹{log.meta?.amount} {log.meta?.description ? `- ${log.meta.description}` : ""}
+                    </span>
+                  ) : isSettled ? (
+                    <span className="text-green-400">
+                      Settled ₹{log.meta?.amount} {log.meta?.with_user ? `with member` : ''}
+                    </span>
+                  ) : isMember ? (
+                    <span className="text-blue-400">
+                      Member added: {log.meta?.added_name || 'Unknown'}
+                    </span>
+                  ) : (
+                    <span>{log.action_type?.replace(/_/g, ' ')}</span>
+                  )}
+                </div>
+              </button>
+            );
+          })
         )}
       </div>
 
